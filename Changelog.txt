@@ -1,0 +1,17 @@
+
+Version 0.2
+
+  Added random walking
+  Fixed some auto targeting issues
+  Fixed some aming issues
+  Improved automatic weapon selection
+
+Version 0.1
+
+  Added basic alien support
+  Added auto attacking
+  Added random environment observing 
+
+Version 0.0
+
+  A simple marine bot that uses the pathfinding system and builds unbuilt structures
