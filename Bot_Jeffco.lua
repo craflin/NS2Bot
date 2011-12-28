@@ -2,11 +2,23 @@
 //
 // lua\Bot_Jeffco.lua
 //
-// AI "bot" functions for goal setting and moving (used by Bot.lua).
+// A simple bot implementation for Natural Selection 2
 //
-// Created by Colin Graf (colin.graf@sovereign-labs.com)
-// Based on Bot_Player.lua by Charlie Cleveland (charlie@unknownworlds.com)
-// Copyright (c) 2011, Unknown Worlds Entertainment, Inc.
+// Version 0.1
+//
+// Copyright 2011 Colin Graf (colin.graf@sovereign-labs.com)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 //=============================================================================
 
@@ -16,89 +28,123 @@ local kBotNames = {
     "Bennet (bot)", "Petrelli (bot)", "Nakamura (bot)", "Suresh (bot)", "Masahashi (bot)", "Sylar (bot)", "Parkman (bot)",
     "Sanders (bot)"
 }
+local kDebugMode = false
 
 class 'BotJeffco' (Bot)
 
-function BotJeffco:UpdateName()
-
-    // Set name after a bit of time to simulate real players
-    if math.random() < .01 then
-
-        local player = self:GetPlayer()
-        local name = player:GetName()
-        if name and string.find(string.lower(name), string.lower(kDefaultPlayerName)) ~= nil then
-    
-            local numNames = table.maxn(kBotNames)
-            local index = Clamp(math.ceil(math.random() * numNames), 1, numNames)
-            OnCommandSetName(self.client, kBotNames[index])
-            
-        end
-        
-    end
-    
-end
+BotJeffco.kRange = 30
 
 function BotJeffco:GetOrderLocation()
+
     local player = self:GetPlayer()
     local order = player:GetCurrentOrder()
-    if order ~= nil then
+    
+    if order then
         local orderType = order:GetType()
         local orderTarget = Shared.GetEntity(order:GetParam())
-        if (orderType == kTechId.Attack or orderType == kTechId.Construct) and orderTarget ~= nil then
+        if (orderType == kTechId.Attack or orderType == kTechId.Construct) and orderTarget then
             self.orderLocation = orderTarget:GetEngagementPoint()
         else 
             self.orderLocation = order:GetLocation()
         end
     end
+    
     return self.orderLocation
+end
+
+function BotJeffco:GetOrderTarget(type)
+
+    local player = self:GetPlayer()
+    local order = player:GetCurrentOrder()
+    
+    if order and order:GetType() == type then
+      return Shared.GetEntity(order:GetParam())
+    end
+
+end
+
+function BotJeffco:GetAttackTarget()
+
+    local player = self:GetPlayer()
+
+    if not player.targetSelector then
+        if player:isa("Marine") then
+            player.targetSelector = TargetSelector():Init(
+                player,
+                BotJeffco.kRange, 
+                true,
+                { kMarineStaticTargets, kMarineMobileTargets },
+                { /* PitchTargetFilter(self,  -Sentry.kMaxPitch, Sentry.kMaxPitch), */ CloakTargetFilter(), CamouflageTargetFilter() })
+        end
+        if player:isa("Alien") then
+            player.targetSelector = TargetSelector():Init(
+                player,
+                BotJeffco.kRange, 
+                true,
+                { kAlienStaticTargets, kAlienMobileTargets },
+                { /* PitchTargetFilter(self,  -Sentry.kMaxPitch, Sentry.kMaxPitch), CloakTargetFilter(), CamouflageTargetFilter() */ })
+        end
+    end
+    
+    if player.targetSelector then
+        return player.targetSelector:AcquireTarget()
+    end
+    
+    return self:GetOrderTarget(kTechId.Attack)
+end
+
+function BotJeffco:LookAtPoint(toPoint, direct)
+
+    local player = self:GetPlayer()
+
+    // compute direction to target
+    local diff = toPoint - player:GetEyePos()
+    local direction = GetNormalizedVector(diff)
+    
+    // look at target
+    if direct then
+        self.move.yaw = GetYawFromVector(direction) - player.baseYaw
+        self.move.pitch = GetPitchFromVector(direction) - player.basePitch
+    else
+        self.move.yaw = SlerpRadians(self.move.yaw, GetYawFromVector(direction) - player.baseYaw, .4)
+        self.move.pitch = SlerpRadians(self.move.pitch, GetPitchFromVector(direction) - player.basePitch, .4)
+    end
+    
 end
 
 function BotJeffco:MoveToPoint(toPoint)
 
     local player = self:GetPlayer()
     
-    //if not self:IsPathValid(player:GetEyePos(), toPoint) then
-        if self:BuildPath(player:GetEyePos(), toPoint) then
-          local points = self:GetPoints()
-          if points ~= nil then
+    // use pathfinder
+    if self:BuildPath(player:GetEyePos(), toPoint) then
+        local points = self:GetPoints()
+        if points then
             toPoint = points[1]
-          end
-          if #points > 1 and (player:GetEyePos() - toPoint):GetLengthSquared() < 4 then
-            toPoint = points[2]
-          end
         end
-    //end
+        if table.maxn(points) > 1 and (player:GetEyePos() - toPoint):GetLengthSquared() < 4 then
+            toPoint = points[2]
+        end
+    end
     
-    // Fill in move to get to specified point
-    local diff = toPoint - player:GetEyePos()
-    local direction = GetNormalizedVector(diff)
-        
-    // Look at target (needed for moving and attacking)
-    self.move.yaw   = GetYawFromVector(direction) - player.baseYaw
-    self.move.pitch = GetPitchFromVector(direction) - player.basePitch
+    // look at target
+    self:LookAtPoint(toPoint)
     
     // walk forwards
     self.move.move.z = 1
 end
 
-function BotJeffco:LookAtPoint(toPoint)
+function BotJeffco:StateTrace(name)
 
-    local player = self:GetPlayer()
-
-    // Fill in move to get to specified point
-    local diff = toPoint - player:GetEyePos()
-    local direction = GetNormalizedVector(diff)
-        
-    // Look at target (needed for moving and attacking)
-    self.move.yaw   = GetYawFromVector(direction) - player.baseYaw
-    self.move.pitch = GetPitchFromVector(direction) - player.basePitch
+  if kDebugMode and self.stateName ~= name then
+    Print("%s", name)
+    self.stateName = name
+  end
 
 end
 
-/**
- * Responsible for generating the "input" for the bot. This is equivalent to
- * what a client sends across the network.
- */
+//=============================================================================
+
 function BotJeffco:GenerateMove()
 
     local player = self:GetPlayer()
@@ -108,13 +154,20 @@ function BotJeffco:GenerateMove()
     move.yaw = player:GetAngles().yaw - player.baseYaw
     move.pitch = player:GetAngles().pitch - player.basePitch
     
-    // use the state machine
-    self.move = move;
-    if self.currentState == nil then
-      self.currentState = self.InitialState
+    // use a state machine to generate a move
+    local currentTime = Shared.GetTime()
+    self.move = move
+    //self.state = nil
+    if self.state == nil then
+      self.state = self.InitialState
+      self.stateEnterTime = currentTime
     end
-    self.currentState = self.currentState(self) // pass #1
-    //self.currentState = self.currentState(self) // pass #2
+    self.stateTime = currentTime - self.stateEnterTime
+    local newState = self.state(self)
+    if newState ~= self.state then
+      self.stateEnterTime = currentTime
+    end
+    self.state = newState
     
     return self.move
 end
@@ -122,8 +175,6 @@ end
 function BotJeffco:OnThink()
 
     Bot.OnThink(self)
-        
-    self:UpdateName()
     
 end
 
@@ -132,65 +183,194 @@ end
 
 function BotJeffco:InitialState()
 
-  // attack?
-  // TODO
+    self:StateTrace("initial")
 
-  // move?
-  local orderLocation = self:GetOrderLocation()
-  if orderLocation ~= nil and self.lastOrderLocation ~= orderLocation then
-    return self.MoveState
-  end
+    // wait a few seconds, set name and start idling
+    if self.stateTime > 6 then
   
-  // construct?
-  local player = self:GetPlayer()
-  local order = player:GetCurrentOrder()
-  if order ~= nil and order:GetType() == kTechId.Construct and Shared.GetEntity(order:GetParam()) ~= nil then
-    return self.ConstructState
-  end
+        local player = self:GetPlayer()
+        local name = player:GetName()
+        if name and string.find(string.lower(name), string.lower(kDefaultPlayerName)) then
+    
+            local numNames = table.maxn(kBotNames)
+            local index = Clamp(math.ceil(math.random() * numNames), 1, numNames)
+            OnCommandSetName(self.client, kBotNames[index])
 
-  // stay
-  return self.InitialState
+        end
+        
+        return self.IdleState
+   
+    end
+  
+    return self.InitialState
+end
+
+function BotJeffco:IdleState()
+  
+    self:StateTrace("idle")
+     
+    // respawing?
+    local player = self:GetPlayer()
+    if player:isa("AlienSpectator") then
+       return self.HatchState
+    end
+        
+    // attack?
+    if self:GetAttackTarget() then
+        return self.AttackState
+    end
+    
+    // construct?
+    if self:GetOrderTarget(kTechId.Construct) then
+        return self.ConstructState
+    end
+
+    // move?
+    local orderLocation = self:GetOrderLocation()
+    if orderLocation and (player:GetEyePos() - orderLocation):GetLengthSquared() > 4 then
+        return self.MoveState
+    end
+
+    // look around
+    if orderLocation then
+      
+        if self.randomLookTarget == nil then
+            self.randomLookTarget = player:GetEyePos()
+            self.randomLookTarget.x = self.randomLookTarget.x + math.random(-50, 50)
+            self.randomLookTarget.z = self.randomLookTarget.z + math.random(-50, 50)
+        end 
+        self:LookAtPoint(self.randomLookTarget)
+        
+        if self.lastYaw then
+            if math.abs(self.move.yaw - self.lastYaw) < .05 and math.abs(self.move.pitch - self.lastPitch) < .05 then
+                self.randomLookTarget = nil
+            end
+        end
+        
+        self.lastYaw = self.move.yaw
+        self.lastPitch = self.move.pitch
+      
+    end 
+
+    // stay
+    return self.IdleState
+end
+
+function BotJeffco:HatchState()
+
+    self:StateTrace("hatch")
+
+    local player = self:GetPlayer()
+    if not player:isa("AlienSpectator") then
+       return self.IdleState
+    end
+
+    self.move.commands = Move.PrimaryAttack
+    
+    return self.HatchState
 end
 
 function BotJeffco:MoveState()
 
-  // move?
-  local orderLocation = self:GetOrderLocation()
-  if orderLocation == nil then
-    return self.InitialState
-  end
-  
-  // move to target
-  self:MoveToPoint(orderLocation)
-  
-  // target reached?
-  local player = self:GetPlayer()
-  if (player:GetEyePos() - orderLocation):GetLengthSquared() < 4 then
-    self.lastOrderLocation = orderLocation
-    return self.InitialState
-  end
+    self:StateTrace("move")
 
-  return self.MoveState
+    // move?
+    local orderLocation = self:GetOrderLocation()
+    if orderLocation == nil then
+        return self.IdleState
+    end
+  
+    // move to target
+    self:MoveToPoint(orderLocation)
+  
+    // target reached?
+    local player = self:GetPlayer()
+    if (player:GetEyePos() - orderLocation):GetLengthSquared() < 4 then
+        return self.IdleState
+    end
+
+    return self.MoveState
 end
 
 function BotJeffco:ConstructState()
 
-  // construct?
-  local player = self:GetPlayer()
-  local order = player:GetCurrentOrder()
-  if order == nil or order:GetType() ~= kTechId.Construct then
-    return self.InitialState
-  end  
-  local buildObject = Shared.GetEntity(order:GetParam())
-  if buildObject == nil then
-    return self.InitialState
-  end
-  
-   // look at build object
-  self:LookAtPoint(buildObject:GetEngagementPoint())
+    self:StateTrace("construct")
+    
+    // construct?
+    local constructTarget = self:GetOrderTarget(kTechId.Construct)
+    if constructTarget == nil then
+        return self.IdleState
+    end
 
-  // construct!
-  self.move.commands = bit.bor(self.move.commands, Move.Use)
+    // is target reachable?    
+    local player = self:GetPlayer()
+    local engagementPoint = constructTarget:GetEngagementPoint()
+    if (player:GetEyePos() - engagementPoint):GetLengthSquared() > 4 then
+        self:MoveToPoint(engagementPoint)
+    end
   
-  return self.ConstructState
+    // look at build object
+    self:LookAtPoint(constructTarget:GetEngagementPoint(), true)
+
+    // construct!
+    self.move.commands = bit.bor(self.move.commands, Move.Use)
+  
+    return self.ConstructState
+end
+
+function BotJeffco:AttackState()
+
+    self:StateTrace("attack")
+
+    // attack?
+    local attackTarget = self:GetAttackTarget()
+    if attackTarget == nil then
+        return self.IdleState
+    end
+  
+    // look at attack target
+    self:LookAtPoint(attackTarget:GetEngagementPoint())
+
+    // choose weapon
+    local player = self:GetPlayer()
+    local activeWeapon = player:GetActiveWeapon()
+    if activeWeapon then
+        local outOfAmmo = player:isa("Marine") and activeWeapon:isa("ClipWeapon") and activeWeapon:GetAmmo() == 0    
+        if attackTarget:isa("Structure") and not activeWeapon:isa("Axe") then
+            self.move.commands = bit.bor(self.move.commands, Move.Weapon3)
+        elseif attackTarget:isa("Player") and not activeWeapon:isa("Rifle") then
+            self.move.commands = bit.bor(self.move.commands, Move.Weapon1)
+        elseif outOfAmmo then
+            self.move.commands = bit.bor(self.move.commands, Move.NextWeapon)
+        end        
+    end
+    
+    // move to axe a target?
+    if activeWeapon:isa("Axe") then
+        local engagementPoint = attackTarget:GetEngagementPoint()
+        local allowedDistance = 4
+        if attackTarget:isa("Hive") then
+            allowedDistance = 10
+        end        
+        if (player:GetEyePos() - engagementPoint):GetLengthSquared() > allowedDistance then
+            self:MoveToPoint(engagementPoint)
+            return self.AttackState
+        elseif not attackTarget:isa("Hive") then
+            self.move.commands = bit.bor(self.move.commands, Move.Crouch)
+        end
+    end
+    
+    // as alien move to target
+    if player:isa("Alien") then
+        local engagementPoint = attackTarget:GetEngagementPoint()
+        if (player:GetEyePos() - engagementPoint):GetLengthSquared() > 4 then
+            self:MoveToPoint(engagementPoint)
+            return self.AttackState
+        end
+    end
+
+    // attack!
+    self.move.commands = bit.bor(self.move.commands, Move.PrimaryAttack)
+
+    return self.AttackState
 end
