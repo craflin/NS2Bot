@@ -4,7 +4,7 @@
 //
 // A simple bot implementation for Natural Selection 2
 //
-// Version 0.1
+// Version 0.2
 //
 // Copyright 2011 Colin Graf (colin.graf@sovereign-labs.com)
 //
@@ -24,14 +24,13 @@
 
 Script.Load("lua/Bot.lua")
 
-local kBotNames = {
+class 'BotJeffco' (Bot)
+
+BotJeffco.kBotNames = {
     "Bennet (bot)", "Petrelli (bot)", "Nakamura (bot)", "Suresh (bot)", "Masahashi (bot)", "Sylar (bot)", "Parkman (bot)",
     "Sanders (bot)"
 }
-local kDebugMode = false
-
-class 'BotJeffco' (Bot)
-
+BotJeffco.kDebugMode = false
 BotJeffco.kRange = 30
 
 function BotJeffco:GetOrderLocation()
@@ -87,7 +86,14 @@ function BotJeffco:GetAttackTarget()
     end
     
     if player.targetSelector then
-        return player.targetSelector:AcquireTarget()
+        if self.lastTargetCachePos == nil or (player:GetEyePos() - self.lastTargetCachePos):GetLengthSquared() > 4 then
+            player.targetSelector:AttackerMoved()
+            self.lastTargetCachePos = player:GetEyePos()
+        end
+        local target = player.targetSelector:AcquireTarget()
+        if target then
+            return target
+        end
     end
     
     return self:GetOrderTarget(kTechId.Attack)
@@ -136,7 +142,7 @@ end
 
 function BotJeffco:StateTrace(name)
 
-  if kDebugMode and self.stateName ~= name then
+  if BotJeffco.kDebugMode and self.stateName ~= name then
     Print("%s", name)
     self.stateName = name
   end
@@ -192,9 +198,9 @@ function BotJeffco:InitialState()
         local name = player:GetName()
         if name and string.find(string.lower(name), string.lower(kDefaultPlayerName)) then
     
-            local numNames = table.maxn(kBotNames)
+            local numNames = table.maxn(BotJeffco.kBotNames)
             local index = Clamp(math.ceil(math.random() * numNames), 1, numNames)
-            OnCommandSetName(self.client, kBotNames[index])
+            OnCommandSetName(self.client, BotJeffco.kBotNames[index])
 
         end
         
@@ -220,40 +226,85 @@ function BotJeffco:IdleState()
         return self.AttackState
     end
     
-    // construct?
+    // construct order?
     if self:GetOrderTarget(kTechId.Construct) then
         return self.ConstructState
     end
 
-    // move?
+    // move order?
     local orderLocation = self:GetOrderLocation()
     if orderLocation and (player:GetEyePos() - orderLocation):GetLengthSquared() > 4 then
         return self.MoveState
     end
+    
+    // walk around
+    if math.random() < .05 then
+        return self.RandomWalkState
+    end
 
     // look around
-    if orderLocation then
-      
-        if self.randomLookTarget == nil then
-            self.randomLookTarget = player:GetEyePos()
-            self.randomLookTarget.x = self.randomLookTarget.x + math.random(-50, 50)
-            self.randomLookTarget.z = self.randomLookTarget.z + math.random(-50, 50)
-        end 
-        self:LookAtPoint(self.randomLookTarget)
-        
-        if self.lastYaw then
-            if math.abs(self.move.yaw - self.lastYaw) < .05 and math.abs(self.move.pitch - self.lastPitch) < .05 then
-                self.randomLookTarget = nil
-            end
-        end
-        
-        self.lastYaw = self.move.yaw
-        self.lastPitch = self.move.pitch
-      
-    end 
-
+    if math.random() < .1 then
+        return self.RandomLookState
+    end
+    
     // stay
     return self.IdleState
+end
+
+function BotJeffco:RandomLookState()
+
+    self:StateTrace("random look")
+    
+    // attack?
+    if self:GetAttackTarget() then
+        return self.AttackState
+    end
+
+    if self.randomLookTarget == nil then
+        local player = self:GetPlayer()
+        self.randomLookTarget = player:GetEyePos()
+        self.randomLookTarget.x = self.randomLookTarget.x + math.random(-50, 50)
+        self.randomLookTarget.z = self.randomLookTarget.z + math.random(-50, 50)
+    end
+
+    self:LookAtPoint(self.randomLookTarget)
+    
+    if self.lastYaw then
+        if (math.abs(self.move.yaw - self.lastYaw) < .05 and math.abs(self.move.pitch - self.lastPitch) < .05) or self.stateTime > 10 then
+            self.randomLookTarget = nil
+            return self.IdleState
+        end
+    end    
+    self.lastYaw = self.move.yaw
+    self.lastPitch = self.move.pitch
+
+    return self.RandomLookState
+end
+
+function BotJeffco:RandomWalkState()
+
+    self:StateTrace("random walk")
+    
+    // attack?
+    if self:GetAttackTarget() then
+        return self.AttackState
+    end
+
+    local player = self:GetPlayer()
+    if self.randomWalkTarget == nil then
+        self.randomWalkTarget = player:GetEyePos()
+        self.randomWalkTarget.x = self.randomWalkTarget.x + math.random(-8, 8)
+        self.randomWalkTarget.z = self.randomWalkTarget.z + math.random(-8, 8)
+    end
+
+    self:MoveToPoint(self.randomWalkTarget)
+    
+    if (player:GetEyePos() - self.randomWalkTarget):GetLengthSquared() < 4 or self.stateTime > 4 then
+        self.randomWalkTarget = nil
+        return self.IdleState
+    end
+  
+    return self.RandomWalkState
 end
 
 function BotJeffco:HatchState()
@@ -328,17 +379,20 @@ function BotJeffco:AttackState()
         return self.IdleState
     end
   
-    // look at attack target
-    self:LookAtPoint(attackTarget:GetEngagementPoint())
-
     // choose weapon
     local player = self:GetPlayer()
     local activeWeapon = player:GetActiveWeapon()
     if activeWeapon then
-        local outOfAmmo = player:isa("Marine") and activeWeapon:isa("ClipWeapon") and activeWeapon:GetAmmo() == 0    
-        if attackTarget:isa("Structure") and not activeWeapon:isa("Axe") then
+        local outOfAmmo = player:isa("Marine") and activeWeapon:isa("ClipWeapon") and activeWeapon:GetAmmo() == 0
+        if self.outOfAmmo == nil then
+          self.outOfAmmo = 0
+        end
+        if outOfAmmo then
+            self.outOfAmmo = self.outOfAmmo + 1
+        end
+        if (attackTarget:isa("Structure") and not activeWeapon:isa("Axe")) then
             self.move.commands = bit.bor(self.move.commands, Move.Weapon3)
-        elseif attackTarget:isa("Player") and not activeWeapon:isa("Rifle") then
+        elseif attackTarget:isa("Player") and not activeWeapon:isa("Rifle") and self.outOfAmmo < 2 and not outOfAmmo then
             self.move.commands = bit.bor(self.move.commands, Move.Weapon1)
         elseif outOfAmmo then
             self.move.commands = bit.bor(self.move.commands, Move.NextWeapon)
@@ -346,7 +400,9 @@ function BotJeffco:AttackState()
     end
     
     // move to axe a target?
-    if activeWeapon:isa("Axe") then
+    local melee = false
+    if activeWeapon and activeWeapon:isa("Axe") then
+        melee = true
         local engagementPoint = attackTarget:GetEngagementPoint()
         local allowedDistance = 4
         if attackTarget:isa("Hive") then
@@ -362,12 +418,16 @@ function BotJeffco:AttackState()
     
     // as alien move to target
     if player:isa("Alien") then
+        melee = true
         local engagementPoint = attackTarget:GetEngagementPoint()
         if (player:GetEyePos() - engagementPoint):GetLengthSquared() > 4 then
             self:MoveToPoint(engagementPoint)
             return self.AttackState
         end
     end
+
+    // look at attack target
+    self:LookAtPoint(attackTarget:GetEngagementPoint(), melee)
 
     // attack!
     self.move.commands = bit.bor(self.move.commands, Move.PrimaryAttack)
