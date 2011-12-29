@@ -1,4 +1,9 @@
 
+Version 0.3
+
+  Added automatic bot count adjusting
+  Added infantry portal building
+
 Version 0.2
 
   Added random walking
