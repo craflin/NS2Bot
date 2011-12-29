@@ -157,7 +157,8 @@ function BotJeffco:LookAtPoint(toPoint, direct)
     if direct then
         self.move.yaw = GetYawFromVector(direction) - player.baseYaw
     else
-        self.move.yaw = SlerpRadians(self.move.yaw, GetYawFromVector(direction) - player.baseYaw, .4)
+        local turnSpeed = ConditionalValue(player:isa("Alien"), .8, .4)
+        self.move.yaw = SlerpRadians(self.move.yaw, GetYawFromVector(direction) - player.baseYaw, turnSpeed)
     end
     self.move.pitch = GetPitchFromVector(direction) - player.basePitch
     //self.move.pitch = SlerpRadians(self.move.pitch, GetPitchFromVector(direction) - player.basePitch, .4)
