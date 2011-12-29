@@ -25,8 +25,9 @@ Script.Load("lua/PathingMixin.lua")
 class 'BotJeffco' (Bot)
 
 BotJeffco.kBotNames = {
-    "Bennet (bot)", "Petrelli (bot)", "Nakamura (bot)", "Suresh (bot)", "Masahashi (bot)", "Sylar (bot)", "Parkman (bot)",
-    "Sanders (bot)"
+    "Whitesides (bot)", "Baptist (bot)", "Fullbright (bot)", "Penhollow (bot)", "Harvill (bot)", "Bossert (bot)", "Claro (bot)",
+    "Sanders (bot)", "Quiros (bot)", "Wakeland (bot)", "Nims (bot)", "Heroux (bot)", "Palafox (bot)", "Madruga (bot)", "Blane (bot)",
+    "Welles (bot)", "Vencill (bot)", "Schoenberg (bot)", "Toll (bot)"
 }
 BotJeffco.kOrder = enum({ "Attack", "Construct", "Move", "Look", "None" })
 BotJeffco.kDebugMode = true
