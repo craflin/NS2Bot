@@ -629,7 +629,7 @@ function BotJeffco:AttackState()
 
     // attack?
     if self.orderType ~= BotJeffco.kOrder.Attack then
-        return self.IdleState
+        return self.RecoverState
     end
     local attackTarget = self.orderTarget
   
@@ -688,10 +688,27 @@ function BotJeffco:AttackState()
     end
 
     // look at attack target
-    self:LookAtPoint(attackTarget:GetEngagementPoint(), melee)
+    local targetPosition = attackTarget:GetEngagementPoint()
+    if activeWeapon and activeWeapon:isa("ClipWeapon") then
+        targetPosition.x = targetPosition.x + (math.random() - 0.5) * 2
+        targetPosition.y = targetPosition.y + (math.random() - 0.5) * 2
+        targetPosition.z = targetPosition.z + (math.random() - 0.5) * 2
+    end
+    self:LookAtPoint(targetPosition, melee)
 
     // attack!
     self.move.commands = bit.bor(self.move.commands, Move.PrimaryAttack)
 
     return self.AttackState
+end
+
+function BotJeffco:RecoverState()
+
+    self:StateTrace("recover")
+    
+    if self.stateTime > 2 or self.orderType == BotJeffco.kOrder.Attack then
+        return self.IdleState
+    end
+
+    return self.RecoverState
 end
