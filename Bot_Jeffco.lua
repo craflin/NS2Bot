@@ -4,8 +4,6 @@
 //
 // A simple bot implementation for Natural Selection 2
 //
-// Version 0.2
-//
 // Copyright 2011 Colin Graf (colin.graf@sovereign-labs.com)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +20,7 @@
 //
 //=============================================================================
 
-Script.Load("lua/Bot.lua")
+Script.Load("lua/PathingMixin.lua")
 
 class 'BotJeffco' (Bot)
 
@@ -35,6 +33,12 @@ BotJeffco.kDebugMode = true
 BotJeffco.kRange = 30
 BotJeffco.kMaxPitch = 89
 BotJeffco.kMinPitch = -89
+
+function BotJeffco:Initialize()
+
+    InitMixin(self, PathingMixin)
+
+end
 
 function BotJeffco:GetInfantryPortal()
 
@@ -260,14 +264,12 @@ end
 
 //=============================================================================
 
-function BotJeffco:GenerateMove()
+function BotJeffco:OnMove()
     return self.move
 end
 
-function BotJeffco:OnThink()
+function BotJeffco:OnThink(deltaTime)
 
-    Bot.OnThink(self)
-    
     //
     self:UpdateOrder()
     
@@ -292,6 +294,8 @@ function BotJeffco:OnThink()
     end
     self.state = newState
     
+    return true
+    
 end
 
 //=============================================================================
@@ -308,9 +312,8 @@ function BotJeffco:InitialState()
         local name = player:GetName()
         if name and string.find(string.lower(name), string.lower(kDefaultPlayerName)) then
     
-            local numNames = table.maxn(BotJeffco.kBotNames)
-            local index = Clamp(math.ceil(math.random() * numNames), 1, numNames)
-            OnCommandSetName(self.client, BotJeffco.kBotNames[index])
+            name = BotJeffco.kBotNames[math.random(1, table.maxn(BotJeffco.kBotNames))]
+            OnCommandSetName(self.client, name)
 
         end
         
@@ -321,12 +324,37 @@ function BotJeffco:InitialState()
     return self.InitialState
 end
 
+function BotJeffco:JoinTeamState()
+
+    self:StateTrace("join team")
+
+    local player = self:GetPlayer()
+    if player:GetTeamNumber() ~= 0 then
+        return self.IdleState
+    end
+
+    local rules = GetGamerules()
+    local joinTeam = ConditionalValue(math.random() < .5, 1, 2)
+    if rules:GetCanJoinTeamNumber(joinTeam) or Shared.GetCheatsEnabled() then
+        rules:JoinTeam(player, joinTeam)
+    end
+
+    self.move.move.z = 1
+
+    return self.JoinTeamState
+end
+
 function BotJeffco:IdleState()
   
     self:StateTrace("idle")
      
+     // in rr?
+     local player = self:GetPlayer()
+     if player:GetTeamNumber() == 0 then
+        return self.JoinTeamState
+     end
+     
     // respawing?
-    local player = self:GetPlayer()
     if player:isa("AlienSpectator") then
        return self.HatchState
     end
