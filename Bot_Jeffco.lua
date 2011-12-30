@@ -210,9 +210,11 @@ function BotJeffco:UpdateOrder()
         local orderTarget = Shared.GetEntity(order:GetParam())
         if orderTarget then
             if orderType == kTechId.Attack then
-                self.orderType = BotJeffco.kOrder.Attack
-                self.orderTarget = orderTarget
-                return
+                if not orderTarget:isa("PowerPoint") or not orderTarget:GetIsDestroyed() then
+                    self.orderType = BotJeffco.kOrder.Attack
+                    self.orderTarget = orderTarget
+                    return
+                end
             end
             if orderType == kTechId.Construct then
                 self.orderType = BotJeffco.kOrder.Construct
