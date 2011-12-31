@@ -1,4 +1,5 @@
 
+  Added automatic alert triggering (medpack, ammo, orders)
   Fixed destroyed powernode attacking issue 
 
 Version 0.3

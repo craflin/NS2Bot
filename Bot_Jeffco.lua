@@ -189,6 +189,52 @@ function BotJeffco:MoveToPoint(toPoint, distablePathing)
     self.move.move.z = 1
 end
 
+function BotJeffco:TriggerAlerts()
+
+    local player = self:GetPlayer()
+    if not player:isa("Marine") then
+        return
+    end
+    
+    if self.lastAlertTime and self.currentTime - self.lastAlertTime < 30 then
+        return
+    end
+    
+    if not self:GetHasCommander() then
+        return
+    end
+    
+    // ask for for medpack
+    if player:GetHealthScalar() < .4 then
+        self.lastAlertTime = self.currentTime
+        if math.random() < .5 then
+        // TODO: consider armory distance
+            player:PlaySound(marineRequestSayingsSounds[2])
+            player:GetTeam():TriggerAlert(kTechId.MarineAlertNeedMedpack, player)
+        end
+    end
+    
+    // ask for ammo pack
+    if self.outOfAmmo and self.outOfAmmo >= 1 then
+        self.lastAlertTime = self.currentTime
+        if math.random() < .5 then
+        // TODO: consider armory distance
+            player:PlaySound(marineRequestSayingsSounds[3])
+            player:GetTeam():TriggerAlert(kTechId.MarineAlertNeedAmmo, player)
+        end
+    end
+    
+    // ask for orders
+    if not self.lastOrderTime or self.currentTime - self.lastOrderTime > 360 then
+        self.lastAlertTime = self.currentTime
+        if math.random() < .5 then
+            player:PlaySound(marineRequestSayingsSounds[4])
+            player:GetTeam():TriggerAlert(kTechId.MarineAlertNeedOrder, player)
+        end
+    end
+
+end
+
 function BotJeffco:UpdateOrder()
 
     local player = self:GetPlayer()
@@ -200,6 +246,7 @@ function BotJeffco:UpdateOrder()
         player:GiveOrder(kTechId.Attack, target:GetId(), target:GetEngagementPoint(), nil, true, true)
         self.orderType = BotJeffco.kOrder.Attack
         self.orderTarget = target
+        self.lastOrderTime = self.currentTime
         return
     end
 
@@ -213,12 +260,14 @@ function BotJeffco:UpdateOrder()
                 if not orderTarget:isa("PowerPoint") or not orderTarget:GetIsDestroyed() then
                     self.orderType = BotJeffco.kOrder.Attack
                     self.orderTarget = orderTarget
+                    self.lastOrderTime = self.currentTime
                     return
                 end
             end
             if orderType == kTechId.Construct then
                 self.orderType = BotJeffco.kOrder.Construct
                 self.orderTarget = orderTarget
+                self.lastOrderTime = self.currentTime
                 return
             end
         end
@@ -227,6 +276,7 @@ function BotJeffco:UpdateOrder()
             if orderLocation ~= self.commanderOrderLocation then
                 self.orderType = BotJeffco.kOrder.Move
                 self.orderLocation = orderLocation
+                self.lastOrderTime = self.currentTime
                 self.commanderOrderLocation = orderLocation
                 self.commanderOrderLocationReached = false
                 return
@@ -238,6 +288,7 @@ function BotJeffco:UpdateOrder()
             else
                 self.orderType = BotJeffco.kOrder.Move
                 self.orderLocation = self.commanderOrderLocation
+                self.lastOrderTime = self.currentTime
                 return
             end
         end
@@ -252,6 +303,7 @@ function BotJeffco:UpdateOrder()
       player:GiveOrder(kTechId.Attack, target:GetId(), target:GetEngagementPoint(), nil, true, true)
       self.orderType = BotJeffco.kOrder.Attack
       self.orderTarget = target
+      self.lastOrderTime = self.currentTime
       return
     end
 
@@ -276,6 +328,7 @@ function BotJeffco:OnThink(deltaTime)
 
     //
     self:UpdateOrder()
+    self:TriggerAlerts()
     
     // set default move
     local player = self:GetPlayer()
@@ -292,11 +345,12 @@ function BotJeffco:OnThink(deltaTime)
       self.stateEnterTime = currentTime
     end
     self.stateTime = currentTime - self.stateEnterTime
+    self.currentTime = currentTime
     local newState = self.state(self)
     if newState ~= self.state then
       self.stateEnterTime = currentTime
+      self.state = newState
     end
-    self.state = newState
     
     return true
     
