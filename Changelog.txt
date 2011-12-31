@@ -1,4 +1,6 @@
 
+  Fixed destroyed powernode attacking issue 
+
 Version 0.3
 
   Added automatic bot count adjusting
