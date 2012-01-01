@@ -660,7 +660,11 @@ function BotJeffco:ConstructState()
     // is target reachable?    
     local player = self:GetPlayer()
     local engagementPoint = self.orderTarget:GetEngagementPoint()
-    if (player:GetEyePos() - engagementPoint):GetLengthSquared() > 5 then
+    local allowedDistance = 5
+    if self.orderTarget:isa("RoboticsFactory") then
+        allowedDistance = 7
+    end
+    if (player:GetEyePos() - engagementPoint):GetLengthSquared() > allowedDistance then
         self.orderLocation = engagementPoint
         return self.MoveState
     end
