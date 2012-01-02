@@ -1,6 +1,7 @@
 
-  Added automatic alert triggering (medpack, ammo, orders)
-  Fixed destroyed powernode attacking issue 
+  Marine: Added automatic power node / player repairing
+  Marine: Added automatic alert triggering (medpack, ammo, orders)
+  Skulk: Fixed destroyed power node attacking issue 
 
 Version 0.3
 

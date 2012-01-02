@@ -32,6 +32,7 @@ BotJeffco.kBotNames = {
 BotJeffco.kOrder = enum({ "Attack", "Construct", "Move", "Look", "None" })
 BotJeffco.kDebugMode = true
 BotJeffco.kRange = 30
+BotJeffco.kRepairRange = 10
 BotJeffco.kMaxPitch = 89
 BotJeffco.kMinPitch = -89
 
@@ -143,6 +144,40 @@ function BotJeffco:GetStaticAttackTarget()
         player.staticTargetSelector:AttackerMoved()
         return player.staticTargetSelector:AcquireTarget()
     end
+end
+
+function BotJeffco:GetRepairTarget()
+
+    local player = self:GetPlayer()
+    local eyePos = player:GetEyePos()
+    local repairTarget, closestDistance
+    local allowedDistance = BotJeffco.kRepairRange * BotJeffco.kRepairRange
+    
+    local ents = Shared.GetEntitiesWithClassname("Marine")    
+    local count = ents:GetSize()
+    for i = 0, count - 1 do
+        local marine = ents:GetEntityAtIndex(i)
+        local distance = (marine:GetOrigin() - eyePos):GetLengthSquared()
+        if distance < allowedDistance and marine:GetIsAlive() and marine:GetArmor() < marine:GetMaxArmor() and (repairTarget == nil or distance < closestDistance) then
+            repairTarget, closestDistance = marine, distance
+        end
+    end
+    
+    if repairTarget then
+      return repairTarget
+    end
+    
+    ents = Shared.GetEntitiesWithClassname("PowerPoint")    
+    count = ents:GetSize()
+    for i = 0, count - 1 do
+        local powerPoint = ents:GetEntityAtIndex(i)
+        local distance = (powerPoint:GetOrigin() - eyePos):GetLengthSquared()
+        if distance < allowedDistance and powerPoint:GetIsSocketed() and powerPoint:GetHealthScalar() < 1. and (repairTarget == nil or distance < closestDistance) then
+            repairTarget, closestDistance = powerPoint, distance
+        end
+    end
+
+    return repairTarget
 end
 
 function BotJeffco:LookAtPoint(toPoint, direct)
@@ -295,7 +330,13 @@ function BotJeffco:UpdateOrder()
     end    
     
     // #3 repair objects near by?
-    // TODO
+    target = self:GetRepairTarget()
+    if target then
+        self.orderType = BotJeffco.kOrder.Construct
+        self.orderTarget = target
+        self.lastOrderTime = self.currentTime
+        return
+    end
     
     // #4 attack stationary objects
     target = self:GetStaticAttackTarget()
@@ -435,11 +476,6 @@ function BotJeffco:IdleState()
     // move order?
     if self.orderType == BotJeffco.kOrder.Move then
         return self.MoveState
-    end
-    
-    // look order?
-    if self.orderType == BotJeffco.kOrder.Look then
-        return self.LookState
     end
     
     // build ip?
