@@ -180,6 +180,35 @@ function BotJeffco:GetRepairTarget()
     return repairTarget
 end
 
+function BotJeffco:GetWeapons()
+
+    local player = self:GetPlayer()
+    local primary, secondary
+    for _, weapon in ientitychildren(player, "ClipWeapon") do
+      local slot = weapon:GetHUDSlot()
+      if slot == kSecondaryWeaponSlot then
+        secondary = weapon
+      elseif slot == kPrimaryWeaponSlot then
+        primary = weapon
+      end
+    end
+    return primary, secondary
+end
+
+function BotJeffco:GetAmmoScalar()
+
+    local player = self:GetPlayer()
+    local ammo, maxAmmo = 0, 0
+    for _, weapon in ientitychildren(player, "ClipWeapon") do
+        ammo = ammo + weapon:GetAmmo()
+        maxAmmo = maxAmmo + weapon:GetMaxAmmo()
+    end
+    if maxAmmo == 0 then // alien
+        return 1
+    end
+    return ammo / maxAmmo
+end
+
 function BotJeffco:LookAtPoint(toPoint, direct)
 
     local player = self:GetPlayer()
@@ -250,7 +279,7 @@ function BotJeffco:TriggerAlerts()
     end
     
     // ask for ammo pack
-    if self.outOfAmmo and self.outOfAmmo >= 1 then
+    if self:GetAmmoScalar() < .6 then
         self.lastAlertTime = self.currentTime
         if math.random() < .5 then
         // TODO: consider armory distance
