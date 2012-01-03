@@ -322,7 +322,8 @@ function BotJeffco:UpdateOrder()
         if orderTarget then
             if orderType == kTechId.Attack then
                 if not orderTarget:isa("PowerPoint") or not orderTarget:GetIsDestroyed() then
-                    self.orderType = BotJeffco.kOrder.Attack
+                    self.orderType = BotJeffco.kOrder.Move
+                    self.orderLocation = orderTarget:GetEngagementPoint()
                     self.orderTarget = orderTarget
                     self.lastOrderTime = self.currentTime
                     return
