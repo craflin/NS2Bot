@@ -322,7 +322,7 @@ function BotJeffco:UpdateOrder()
         if orderTarget then
             if orderType == kTechId.Attack then
                 if not orderTarget:isa("PowerPoint") or not orderTarget:GetIsDestroyed() then
-                    self.orderType = BotJeffco.kOrder.Move
+                    self.orderType = BotJeffco.kOrder.Attack
                     self.orderLocation = orderTarget:GetEngagementPoint()
                     self.orderTarget = orderTarget
                     self.lastOrderTime = self.currentTime
@@ -756,29 +756,33 @@ function BotJeffco:AttackState()
 
     // attack?
     if self.orderType ~= BotJeffco.kOrder.Attack then
-        return self.RecoverState
+        //return self.RecoverState
+        return self.IdleState
     end
     local attackTarget = self.orderTarget
   
     // choose weapon
     local player = self:GetPlayer()
     local activeWeapon = player:GetActiveWeapon()
-    if activeWeapon then
-        local outOfAmmo = player:isa("Marine") and activeWeapon:isa("ClipWeapon") and activeWeapon:GetAmmo() == 0
-        if self.outOfAmmo == nil then
-          self.outOfAmmo = 0
-        end
-        if outOfAmmo then
-            self.outOfAmmo = self.outOfAmmo + 1
-        end
-        if (attackTarget:isa("Structure") and not activeWeapon:isa("Axe")) then
-            self.move.commands = bit.bor(self.move.commands, Move.Weapon3)
-        elseif attackTarget:isa("Player") and not activeWeapon:isa("Rifle") and self.outOfAmmo < 2 and not outOfAmmo then
-            self.move.commands = bit.bor(self.move.commands, Move.Weapon1)
+    local outOfAmmo = activeWeapon == nil or (activeWeapon:isa("ClipWeapon") and activeWeapon:GetAmmo() == 0)
+    if attackTarget:isa("Structure") and (activeWeapon == nil or not activeWeapon:isa("Axe")) then
+        self.move.commands = bit.bor(self.move.commands, Move.Weapon3)
+    elseif attackTarget:isa("Player") then
+        local primaryWeapon, secondaryWeapon = self:GetWeapons()
+        if primaryWeapon and (not primaryWeapon:isa("ClipWeapon") or primaryWeapon:GetAmmo() > 0) then
+            if activeWeapon ~= primaryWeapon then
+                self.move.commands = bit.bor(self.move.commands, Move.Weapon1)
+            end
+        elseif secondaryWeapon and (not secondaryWeapon:isa("ClipWeapon") or secondaryWeapon:GetAmmo() > 0) then
+            if activeWeapon ~= secondaryWeapon then
+                self.move.commands = bit.bor(self.move.commands, Move.Weapon2)
+            end
         elseif outOfAmmo then
             self.move.commands = bit.bor(self.move.commands, Move.NextWeapon)
-        end        
-    end
+        end
+    elseif outOfAmmo then
+        self.move.commands = bit.bor(self.move.commands, Move.NextWeapon)
+    end        
     
     // move to axe a target?
     local melee = false
@@ -824,7 +828,9 @@ function BotJeffco:AttackState()
     self:LookAtPoint(targetPosition, melee)
 
     // attack!
-    self.move.commands = bit.bor(self.move.commands, Move.PrimaryAttack)
+    if math.random() < .5 then
+        self.move.commands = bit.bor(self.move.commands, Move.PrimaryAttack)
+    end
 
     return self.AttackState
 end
