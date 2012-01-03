@@ -1,4 +1,7 @@
 
+Version 0.4
+
+  Improved fighting skills
   Marine: Added automatic power node / player repairing
   Marine: Added automatic alert triggering (medpack, ammo, orders)
   Skulk: Fixed destroyed power node attacking issue 
